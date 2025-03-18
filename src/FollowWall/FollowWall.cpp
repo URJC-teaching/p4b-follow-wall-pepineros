@@ -14,35 +14,36 @@
 
 #include <memory>
 
-#include "laser/ObstacleDetectorNode.hpp"
+#include "FollowWall/FollowWall.hpp"
 
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "std_msgs/msg/bool.hpp"
 
 #include "rclcpp/rclcpp.hpp"
 
-namespace laser
+namespace FollowWall
 {
 
 using std::placeholders::_1;
 
-ObstacleDetectorNode::ObstacleDetectorNode()
-: Node("obstacle_detector_node")
+FollowWallNode::FollowWallNode()
+: Node("follow_wall_node")
 {
   declare_parameter("min_distance", min_distance_);
   get_parameter("min_distance", min_distance_);
 
-  RCLCPP_INFO(get_logger(), "ObstacleDetectorNode set to %f m", min_distance_);
+  RCLCPP_INFO(get_logger(), "FollowWallNode set to %f m", min_distance_);
 
   laser_sub_ = create_subscription<sensor_msgs::msg::LaserScan>(
     "input_scan", rclcpp::SensorDataQoS().reliable(),
-    std::bind(&ObstacleDetectorNode::laser_callback, this, _1));
+    std::bind(&FollowWallNode::laser_callback, this, _1));
   obstacle_pub_ = create_publisher<std_msgs::msg::Bool>(
     "obstacle", 100);
 }
 
 void
-ObstacleDetectorNode::laser_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr & scan)
+
+FollowWallNode::laser_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr & scan)
 {
   int min_idx = std::min_element(scan->ranges.begin(), scan->ranges.end()) - scan->ranges.begin();
   float distance_min = scan->ranges[min_idx];
@@ -64,4 +65,4 @@ ObstacleDetectorNode::laser_callback(const sensor_msgs::msg::LaserScan::ConstSha
   obstacle_pub_->publish(obstacle_msg);
 }
 
-}  // namespace laser
+}  // namespace FollowWall

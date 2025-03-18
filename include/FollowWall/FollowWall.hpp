@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef LASER__OBSTACLEDETECTORNODE_HPP_
-#define LASER__OBSTACLEDETECTORNODE_HPP_
+#ifndef FOLLOWWALL__FOLLOWWALL_HPP_
+#define FOLLOWWALL__FOLLOWWALL_HPP_
 
 #include <memory>
 
@@ -21,13 +21,13 @@
 #include "std_msgs/msg/bool.hpp"
 #include "rclcpp/rclcpp.hpp"
 
-namespace laser
+namespace FollowWall
 {
 
-class ObstacleDetectorNode : public rclcpp::Node
+class FollowWallNode : public rclcpp::Node
 {
 public:
-  ObstacleDetectorNode();
+  FollowWallNode();
 
 private:
   void laser_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr & scan);
@@ -38,6 +38,6 @@ private:
   float min_distance_ {0.5f};
 };
 
-}  // namespace laser
+}  // namespace FollowWall
 
-#endif  // LASER__OBSTACLEDETECTORNODE_HPP_
+#endif  // FOLLOWWALL__FOLLOWWALL_HPP_
