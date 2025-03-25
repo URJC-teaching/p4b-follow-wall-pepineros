@@ -3,7 +3,8 @@
 <package format="3">
   <name>p4b-follow-wall-pepineros</name>
   <version>0.0.1</version>
-  <description>TODO: Package description</description>
+  <description>Package for following walls using a state machine with ROS2.</description>
+
   <maintainer email="v.domene.2021@alumnos.urjc.es">vdomene</maintainer>
   <license>TODO: License declaration</license>
 
@@ -11,6 +12,8 @@
 
   <depend>rclcpp</depend>
   <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend> 
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
