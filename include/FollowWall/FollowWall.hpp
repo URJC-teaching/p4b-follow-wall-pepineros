@@ -2,7 +2,6 @@
 #define FOLLOWWALL__FOLLOWWALL_HPP_
 
 #include <memory>
-
 #include "sensor_msgs/msg/laser_scan.hpp"
 #include "std_msgs/msg/bool.hpp"
 #include "geometry_msgs/msg/twist.hpp"
@@ -26,8 +25,9 @@ private:
 
   float min_distance_ {0.5f};  // Distancia mínima para detectar obstáculos
   float wall_distance_ {1.0f}; // Distancia deseada de la pared
+  
   enum class State { FOLLOW_WALL, SEARCH_WALL, AVOID_OBSTACLE };
-  State current_state_ {State::SEARCH_WALL};
+  State current_state_;
 };
 
 }  // namespace FollowWall
