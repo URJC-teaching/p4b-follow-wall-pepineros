@@ -1,5 +1,4 @@
 #include <memory>
-
 #include "FollowWall/FollowWall.hpp"
 #include "rclcpp/rclcpp.hpp"
 
@@ -7,10 +6,14 @@ int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
 
-  auto node_detector = std::make_shared<FollowWall::FollowWallNode>();
+  // Crear el nodo para seguir la pared
+  auto node_follow_wall = std::make_shared<FollowWall::FollowWallNode>();
 
-  rclcpp::spin(node_detector);
+  // Ejecutar el nodo
+  rclcpp::spin(node_follow_wall);
 
+  // Finalizar y cerrar el nodo
   rclcpp::shutdown();
+
   return 0;
 }
