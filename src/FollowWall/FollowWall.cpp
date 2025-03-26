@@ -1,91 +1,92 @@
-#include <memory>
+#include <memory> 
 #include <algorithm>
 #include "FollowWall/FollowWall.hpp"
-#include "sensor_msgs/msg/laser_scan.hpp"
-#include "std_msgs/msg/bool.hpp"
+#include "sensor_msgs/msg/laser_scan.hpp"  
+#include "std_msgs/msg/bool.hpp" 
 #include "geometry_msgs/msg/twist.hpp"
-#include "rclcpp/rclcpp.hpp"
+#include "rclcpp/rclcpp.hpp" 
 
 namespace FollowWall
 {
 
-using std::placeholders::_1;
+using std::placeholders::_1;  
 
+// Constructor de la clase FollowWallNode
 FollowWallNode::FollowWallNode()
-: Node("follow_wall_node")
+: Node("follow_wall_node")  // Inicializamos el nodo con el nombre "follow_wall_node"
 {
+  // Declaramos y obtenemos los parámetros
   declare_parameter("min_distance", min_distance_);
+  declare_parameter("distance_to_wall", distance_to_wall_);
   get_parameter("min_distance", min_distance_);
+  get_parameter("distance_to_wall", distance_to_wall_);
 
-  RCLCPP_INFO(get_logger(), "FollowWallNode set to %f m", min_distance_);
-
+  // Suscripción al topic "scan_raw" (Gazebo) o scan_filtered (Kobuki)
   laser_sub_ = create_subscription<sensor_msgs::msg::LaserScan>(
-    "input_scan", rclcpp::SensorDataQoS().reliable(),
+    "scan_filtered", rclcpp::SensorDataQoS().reliable(),
     std::bind(&FollowWallNode::laser_callback, this, _1));
 
+  // Publicador para indicar si hay un obstáculo en el topic "obstacle"
   obstacle_pub_ = create_publisher<std_msgs::msg::Bool>("obstacle", 100);
+
+  // Publicador para enviar comandos de velocidad al robot en el topic "cmd_vel"
   cmd_vel_pub_ = create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 10);
 }
 
+// Callback que procesa los datos del Lidar
 void 
 FollowWallNode::laser_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr & scan)
 {
-  // Encuentra la distancia mínima medida por el LIDAR
+  // Encontramos la distancia mínima detectada por el Lidar
   int min_idx = std::min_element(scan->ranges.begin(), scan->ranges.end()) - scan->ranges.begin();
   float distance_min = scan->ranges[min_idx];
 
-  // Inicializar mensajes de control
-  auto obstacle_msg = std_msgs::msg::Bool();
-  auto cmd_vel_msg = geometry_msgs::msg::Twist();
+  // Mensajes que se publicarán
+  auto obstacle_msg = std_msgs::msg::Bool();  // Para indicar si hay un obstáculo
+  auto cmd_vel_msg = geometry_msgs::msg::Twist();  // Para controlar el movimiento del robot
 
-  // Dependiendo del estado actual, actuamos
+  // Máquina de estados para decidir la acción del robot
   switch (estado_actual) {
     case Estado::SIGUIENDO_PARED:
-      // Si la distancia a la pared es menor de 1 metro, seguimos la pared
-      if (distance_min > distance_to_wall_) {
-        cmd_vel_msg.linear.x = 0.2;  // Avanzar hacia adelante
-        cmd_vel_msg.angular.z = 0.0; // Mantener la dirección
-      } else {
-        cmd_vel_msg.linear.x = 0.0;  // Detenerse
-        cmd_vel_msg.angular.z = 0.5; // Girar a la izquierda
+      if (distance_min > distance_to_wall_ + 0.2) {  // Si está demasiado lejos de la pared
+        cmd_vel_msg.linear.x = 0.2;
+        cmd_vel_msg.angular.z = -0.1;  // Corrige ligeramente hacia la pared
+      } else if (distance_min < distance_to_wall_ - 0.2) {  // Si está demasiado cerca de la pared
+        cmd_vel_msg.linear.x = 0.2;
+        cmd_vel_msg.angular.z = 0.2;  // Se aleja ligeramente de la pared
+      } else {  // Si está a la distancia correcta
+        cmd_vel_msg.linear.x = 0.2;
+        cmd_vel_msg.angular.z = 0.0;  // Sigue recto
       }
       break;
 
     case Estado::BUSCANDO_PARED:
-      // Si no hay pared cercana (más de 2 metros), continuamos recto
-      if (distance_min > 2.0) {
-        cmd_vel_msg.linear.x = 0.2;  // Avanzar hacia adelante
-        cmd_vel_msg.angular.z = 0.0; // Mantener la dirección
-      } else {
-        estado_actual = Estado::SIGUIENDO_PARED; // Encontramos pared, cambiamos a seguir la pared
+      if (distance_min > 2.0) {  // Si no hay pared cerca, sigue avanzando recto
+        cmd_vel_msg.linear.x = 0.2;
+        cmd_vel_msg.angular.z = 0.0;
+      } else {  // Si encuentra una pared, cambia al estado de seguir la pared
+        estado_actual = Estado::SIGUIENDO_PARED;
       }
       break;
 
     case Estado::EVADE_OBSTACULO:
-      // Si el obstáculo está demasiado cerca, detenerse y girar
-      if (distance_min < 0.5) {
-        cmd_vel_msg.linear.x = 0.0;  // Detenerse
-        cmd_vel_msg.angular.z = 0.5; // Girar a la izquierda
+      if (distance_min < min_distance_) {  // Si hay un obstáculo muy cerca
+        cmd_vel_msg.linear.x = 0.0;
+        cmd_vel_msg.angular.z = 0.5;  // Gira a la izquierda para evitarlo
+      } else {  // Si el obstáculo ha sido evitado, vuelve a seguir la pared
+        estado_actual = Estado::SIGUIENDO_PARED;
       }
       break;
   }
 
-  // Publicar los comandos de movimiento
+  // Publica el mensaje con los comandos de velocidad
   cmd_vel_pub_->publish(cmd_vel_msg);
 
-  // Si hay un obstáculo, publicamos un mensaje
-  if (distance_min < 0.5) {
-    obstacle_msg.data = true;
-    estado_actual = Estado::EVADE_OBSTACULO; // Cambiar a estado de evasión
-  } else {
-    obstacle_msg.data = false;
-    if (estado_actual == Estado::EVADE_OBSTACULO) {
-      estado_actual = Estado::SIGUIENDO_PARED; // Volver a seguir la pared
-    } else if (estado_actual == Estado::SIGUIENDO_PARED) {
-      estado_actual = Estado::BUSCANDO_PARED; // Si está siguiendo la pared, buscar otra pared si está lejos
-    }
+  // Determina si hay un obstáculo demasiado cerca y lo publica
+  obstacle_msg.data = (distance_min < min_distance_);
+  if (obstacle_msg.data) {
+    estado_actual = Estado::EVADE_OBSTACULO;  // Si hay obstáculo, cambia al estado de evasión
   }
-
   obstacle_pub_->publish(obstacle_msg);
 }
 
