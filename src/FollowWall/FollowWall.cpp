@@ -1,15 +1,15 @@
-#include <memory>
+#include <memory> 
 #include <algorithm>
 #include "FollowWall/FollowWall.hpp"
-#include "sensor_msgs/msg/laser_scan.hpp"
-#include "std_msgs/msg/bool.hpp"
+#include "sensor_msgs/msg/laser_scan.hpp"  
+#include "std_msgs/msg/bool.hpp" 
 #include "geometry_msgs/msg/twist.hpp"
-#include "rclcpp/rclcpp.hpp"
+#include "rclcpp/rclcpp.hpp" 
 
 namespace FollowWall
 {
 
-using std::placeholders::_1;
+using std::placeholders::_1;  
 
 // Constructor de la clase FollowWallNode
 FollowWallNode::FollowWallNode()
@@ -21,12 +21,12 @@ FollowWallNode::FollowWallNode()
   get_parameter("min_distance", min_distance_);
   get_parameter("distance_to_wall", distance_to_wall_);
 
-  // Suscripción al topic "scan_filtered" (Gazebo)
+  // Suscripción al topic "scan_raw" (Gazebo) o scan_filtered (Kobuki)
   laser_sub_ = create_subscription<sensor_msgs::msg::LaserScan>(
     "scan_filtered", rclcpp::SensorDataQoS().reliable(),
     std::bind(&FollowWallNode::laser_callback, this, _1));
 
-  // Publicador para indicar si hay un obstáculo en el topic "obstacle"
+  // Publicador para indicar si hay un obstáculo en el topic "obstacle" (en google pone que el Kobuki lo tiene)
   obstacle_pub_ = create_publisher<std_msgs::msg::Bool>("obstacle", 100);
 
   // Publicador para enviar comandos de velocidad al robot en el topic "cmd_vel"
@@ -34,34 +34,35 @@ FollowWallNode::FollowWallNode()
 }
 
 // Callback que procesa los datos del Lidar
-void FollowWallNode::laser_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr & scan)
+void 
+FollowWallNode::laser_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr & scan)
 {
-  // Variables para almacenar las distancias mínimas por delante y por la izquierda
-  float front_distance = std::numeric_limits<float>::infinity();
-  float left_distance = std::numeric_limits<float>::infinity();
+  RCLCPP_INFO(get_logger(), "Obstacle in (%li)", scan->ranges.size());
 
-  // Definir los ángulos para la zona delantera y la zona izquierda
-  int front_start_idx = scan->ranges.size() / 4;  // Comienza a 45 grados hacia la derecha
-  int front_end_idx = 3 * scan->ranges.size() / 4;  // Termina a 45 grados hacia la izquierda
-  int left_start_idx = scan->ranges.size() / 2;  // Comienza a 90 grados hacia la izquierda
-  int left_end_idx = scan->ranges.size() / 2 + 10;  // Termina 10 grados a la izquierda del robot
+  // Encontramos la distancia mínima detectada por el Lidar
+  int min_idx = std::min_element(scan->ranges.begin(), scan->ranges.end()) - scan->ranges.begin();
+  float distance_min = scan->ranges[min_idx];
 
-  // Filtrar valores inválidos y obtener las distancias mínimas en las zonas especificadas
-  for (int i = front_start_idx; i < front_end_idx; ++i) {
-    if (std::isfinite(scan->ranges[i]) && scan->ranges[i] > 0.05) {
-      if (scan->ranges[i] < front_distance) {
-        front_distance = scan->ranges[i];
-      }
-    }
+  // Zona de delante del Lidar
+  float min_dist = scan->range_max;
+  for(int idx=0; idx<19; idx++)
+  {
+    float dist = scan->ranges[idx];
+    if (dist < min_dist) min_dist = dist;
   }
 
-  for (int i = left_start_idx; i < left_end_idx; ++i) {
-    if (std::isfinite(scan->ranges[i]) && scan->ranges[i] > 0.05) {
-      if (scan->ranges[i] < left_distance) {
-        left_distance = scan->ranges[i];
-      }
-    }
+  for(int idx=340; idx<359; idx++)
+  {
+    float dist = scan->ranges[idx];
+    if (dist < min_dist) min_dist = dist;
+
+    RCLCPP_INFO(get_logger(), "min_dist in (%f)", min_dist);
   }
+
+
+  // Zona izquierda del Lidar
+
+
 
   // Mensajes que se publicarán
   auto obstacle_msg = std_msgs::msg::Bool();  // Para indicar si hay un obstáculo
@@ -70,10 +71,10 @@ void FollowWallNode::laser_callback(const sensor_msgs::msg::LaserScan::ConstShar
   // Máquina de estados para decidir la acción del robot
   switch (estado_actual) {
     case Estado::SIGUIENDO_PARED:
-      if (left_distance > distance_to_wall_ + 0.2) {  // Si está demasiado lejos de la pared
+      if (distance_min > distance_to_wall_ + 0.2) {  // Si está demasiado lejos de la pared
         cmd_vel_msg.linear.x = 0.2;
         cmd_vel_msg.angular.z = -0.1;  // Corrige ligeramente hacia la pared
-      } else if (left_distance < distance_to_wall_ - 0.2) {  // Si está demasiado cerca de la pared
+      } else if (distance_min < distance_to_wall_ - 0.2) {  // Si está demasiado cerca de la pared
         cmd_vel_msg.linear.x = 0.2;
         cmd_vel_msg.angular.z = 0.2;  // Se aleja ligeramente de la pared
       } else {  // Si está a la distancia correcta
@@ -83,7 +84,7 @@ void FollowWallNode::laser_callback(const sensor_msgs::msg::LaserScan::ConstShar
       break;
 
     case Estado::BUSCANDO_PARED:
-      if (front_distance > 2.0) {  // Si no hay pared cerca, sigue avanzando recto
+      if (distance_min > 2.0) {  // Si no hay pared cerca, sigue avanzando recto
         cmd_vel_msg.linear.x = 0.2;
         cmd_vel_msg.angular.z = 0.0;
       } else {  // Si encuentra una pared, cambia al estado de seguir la pared
@@ -92,7 +93,7 @@ void FollowWallNode::laser_callback(const sensor_msgs::msg::LaserScan::ConstShar
       break;
 
     case Estado::EVADE_OBSTACULO:
-      if (front_distance < 1.0) {  // Si hay un obstáculo demasiado cerca por delante
+      if (distance_min < min_distance_) {  // Si hay un obstáculo muy cerca
         cmd_vel_msg.linear.x = 0.0;
         cmd_vel_msg.angular.z = 0.5;  // Gira a la izquierda para evitarlo
       } else {  // Si el obstáculo ha sido evitado, vuelve a seguir la pared
@@ -105,7 +106,7 @@ void FollowWallNode::laser_callback(const sensor_msgs::msg::LaserScan::ConstShar
   cmd_vel_pub_->publish(cmd_vel_msg);
 
   // Determina si hay un obstáculo demasiado cerca y lo publica
-  obstacle_msg.data = (front_distance < min_distance_);
+  obstacle_msg.data = (distance_min < min_distance_);
   if (obstacle_msg.data) {
     estado_actual = Estado::EVADE_OBSTACULO;  // Si hay obstáculo, cambia al estado de evasión
   }
