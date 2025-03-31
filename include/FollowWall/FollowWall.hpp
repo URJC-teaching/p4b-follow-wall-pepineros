@@ -29,6 +29,9 @@ private:
   // Callback que se ejecuta cuando se recibe un mensaje del LiDAR
   void laser_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr & scan);
 
+  // Método para controlar el movimiento del robot
+  void move_robot(float linear, float angular);  // Movimiento del robot
+
   // Suscriptor que recibe los datos del Lidar
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_sub_;
 
@@ -41,6 +44,10 @@ private:
   // Parámetros para la distancia
   float min_distance_ {0.5};        // Distancia antes de cambiar al estado de esquivar obstaculo
   float distance_to_wall_ {1.0};    // Distancia a la pared para seguirla correctamente
+
+  // Variables para las distancias mínimas detectadas en las zonas del LIDAR
+  float min_dist {0.0f};            // Distancia mínima en la zona delantera
+  float min_dist_left {0.0f};       // Distancia mínima en la zona izquierda
 
   // Estado actual del robot dentro de la máquina de estados
   Estado estado_actual {Estado::SIGUIENDO_PARED};
