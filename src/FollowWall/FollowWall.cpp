@@ -11,8 +11,7 @@ namespace FollowWall
 using std::placeholders::_1;
 
 // Constructor de la clase FollowWallNode
-FollowWallNode::FollowWallNode()
-: Node("follow_wall_node")  // Inicializamos el nodo con el nombre "follow_wall_node"
+FollowWallNode::FollowWallNode() : Node("follow_wall_node")
 {
   // Declaramos y obtenemos los parámetros
   declare_parameter("min_distance", min_distance_);
@@ -20,7 +19,7 @@ FollowWallNode::FollowWallNode()
   get_parameter("min_distance", min_distance_);
   get_parameter("distance_to_wall", distance_to_wall_);
 
-  // Suscripción al topic "scan_raw" (Gazebo)
+  // Suscripción al topic "scan_raw" (Gazebo) o "scan_filtered" (kobuki)
   laser_sub_ = create_subscription<sensor_msgs::msg::LaserScan>(
     "scan_raw", rclcpp::SensorDataQoS().reliable(),
     std::bind(&FollowWallNode::laser_callback, this, _1));
@@ -33,11 +32,11 @@ FollowWallNode::FollowWallNode()
 void 
 FollowWallNode::laser_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr & scan)
 {
-  RCLCPP_INFO(get_logger(), "Processing LIDAR data (%li points)", scan->ranges.size());
+  RCLCPP_INFO(get_logger(), "Rango del Lidar (%li puntos)", scan->ranges.size());
 
   // Zona de delante del Lidar (de 0 a 19 grados y de 340 a 359 grados)
   float min_dist = scan->range_max;
-  for(int idx = 0; idx < 19; idx++)  // Rango para la zona delantera
+  for(int idx = 0; idx < 19; idx++) 
   {
     float dist = scan->ranges[idx];
     if (dist < min_dist) min_dist = dist;
@@ -47,36 +46,30 @@ FollowWallNode::laser_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr
     float dist = scan->ranges[idx];
     if (dist < min_dist) min_dist = dist;
   }
-  RCLCPP_INFO(get_logger(), "min_dist in front: %f", min_dist);
+  RCLCPP_INFO(get_logger(), "min_dist delante: %f", min_dist);
 
-  // Zona izquierda del Lidar (de 90 a 135 grados y de 225 a 270 grados)
+  // Zona izquierda del Lidar (de 60 a 120 grados)
   float min_dist_left = scan->range_max;
-  for(int idx = 90; idx < 135; idx++)
+  for(int idx = 60; idx <= 120; idx++)
   {
     float dist = scan->ranges[idx];
     if (dist < min_dist_left) min_dist_left = dist;
   }
-  for(int idx = 225; idx < 270; idx++)
-  {
-    float dist = scan->ranges[idx];
-    if (dist < min_dist_left) min_dist_left = dist;
-  }
-  RCLCPP_INFO(get_logger(), "min_dist_left: %f", min_dist_left);
+  RCLCPP_INFO(get_logger(), "min_dist_left izquierda: %f", min_dist_left);
 
   auto cmd_vel_msg = geometry_msgs::msg::Twist();
 
-  // Máquina de estados para decidir la acción del robot
+  // Máquina de estados para decidir la acción del kobuki
   switch (estado_actual) {
     case Estado::SIGUIENDO_PARED:
       if (min_dist < min_distance_) {  // Si hay un obstáculo en frente
         estado_actual = Estado::EVADE_OBSTACULO;
       } else if (min_dist_left > distance_to_wall_ + 0.2) {  // Si está demasiado lejos de la pared izquierda
-        cmd_vel_msg.linear.x = 0.2;
-        cmd_vel_msg.angular.z = -0.1;
+        estado_actual = Estado::BUSCANDO_PARED;
       } else if (min_dist_left < distance_to_wall_ - 0.2) {  // Si está demasiado cerca de la pared izquierda
         cmd_vel_msg.linear.x = 0.2;
         cmd_vel_msg.angular.z = 0.2;
-      } else {
+      } else {  // Si está a la distancia de 1 metro de la pared izquierda
         cmd_vel_msg.linear.x = 0.2;
         cmd_vel_msg.angular.z = 0.0;
       }
