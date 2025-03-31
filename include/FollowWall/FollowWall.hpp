@@ -4,9 +4,8 @@
 // Librerías necesarias
 #include <memory>
 #include "sensor_msgs/msg/laser_scan.hpp"  // Recibimos los datos del LiDAR
-#include "std_msgs/msg/bool.hpp"           
-#include "geometry_msgs/msg/twist.hpp" 
-#include "rclcpp/rclcpp.hpp"            
+#include "geometry_msgs/msg/twist.hpp"    // Mensajes de velocidad
+#include "rclcpp/rclcpp.hpp"              // Funcionalidades de ROS2
 
 namespace FollowWall
 {
@@ -14,9 +13,9 @@ namespace FollowWall
 // Definimos los estados de la máquina de estados del robot
 enum class Estado
 {
-  SIGUIENDO_PARED,  
-  BUSCANDO_PARED,
-  EVADE_OBSTACULO   
+  SIGUIENDO_PARED,   // El robot sigue la pared izquierda
+  BUSCANDO_PARED,    // El robot busca una pared cercana
+  EVADE_OBSTACULO    // El robot esquiva un obstáculo
 };
 
 class FollowWallNode : public rclcpp::Node
@@ -35,19 +34,16 @@ private:
   // Suscriptor que recibe los datos del Lidar
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_sub_;
 
-  // Publicador que indica si hay un obstáculo
-  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr obstacle_pub_;
-
   // Publicador que envía comandos de movimiento al robot
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
 
   // Parámetros para la distancia
-  float min_distance_ {0.5};        // Distancia antes de cambiar al estado de esquivar obstaculo
-  float distance_to_wall_ {1.0};    // Distancia a la pared para seguirla correctamente
+  float min_distance_ {0.5};        // Distancia mínima antes de esquivar un obstáculo
+  float distance_to_wall_ {1.0};    // Distancia deseada a la pared izquierda
 
   // Variables para las distancias mínimas detectadas en las zonas del LIDAR
-  float min_dist {0.0f};            // Distancia mínima en la zona delantera
-  float min_dist_left {0.0f};       // Distancia mínima en la zona izquierda
+  float min_dist {0.0};            // Distancia mínima en la zona delantera
+  float min_dist_left {0.0};       // Distancia mínima en la zona izquierda
 
   // Estado actual del robot dentro de la máquina de estados
   Estado estado_actual {Estado::SIGUIENDO_PARED};
