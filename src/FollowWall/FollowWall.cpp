@@ -1,10 +1,10 @@
-#include <memory> 
+#include <memory>
 #include <algorithm>
 #include "FollowWall/FollowWall.hpp"
-#include "sensor_msgs/msg/laser_scan.hpp"  
-#include "std_msgs/msg/bool.hpp" 
+#include "sensor_msgs/msg/laser_scan.hpp"
+#include "std_msgs/msg/bool.hpp"
 #include "geometry_msgs/msg/twist.hpp"
-#include "rclcpp/rclcpp.hpp" 
+#include "rclcpp/rclcpp.hpp"
 
 namespace FollowWall
 {
@@ -21,9 +21,9 @@ FollowWallNode::FollowWallNode()
   get_parameter("min_distance", min_distance_);
   get_parameter("distance_to_wall", distance_to_wall_);
 
-  // Suscripción al topic "scan_raw" (Gazebo) o scan_filtered (Kobuki)
+  // Suscripción al topic "scan_filtered" (Gazebo)
   laser_sub_ = create_subscription<sensor_msgs::msg::LaserScan>(
-    "scan_filtered", rclcpp::SensorDataQoS().reliable(),
+    "scan_raw", rclcpp::SensorDataQoS().reliable(),
     std::bind(&FollowWallNode::laser_callback, this, _1));
 
   // Publicador para indicar si hay un obstáculo en el topic "obstacle" (en google pone que el Kobuki lo tiene)
@@ -37,32 +37,44 @@ FollowWallNode::FollowWallNode()
 void 
 FollowWallNode::laser_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr & scan)
 {
+  // Imprime la cantidad de datos del LIDAR que estamos recibiendo
   RCLCPP_INFO(get_logger(), "Obstacle in (%li)", scan->ranges.size());
 
-  // Encontramos la distancia mínima detectada por el Lidar
+  // Encontramos la distancia mínima detectada por el Lidar (zona delantera)
   int min_idx = std::min_element(scan->ranges.begin(), scan->ranges.end()) - scan->ranges.begin();
   float distance_min = scan->ranges[min_idx];
 
-  // Zona de delante del Lidar
+  // Zona de delante del Lidar (de 0 a 19 grados y de 340 a 359 grados)
   float min_dist = scan->range_max;
-  for(int idx=0; idx<19; idx++)
+  for(int idx = 0; idx < 19; idx++)  // Rango para la zona delantera
   {
     float dist = scan->ranges[idx];
     if (dist < min_dist) min_dist = dist;
   }
 
-  for(int idx=340; idx<359; idx++)
+  for(int idx = 340; idx < 359; idx++)  // Continúa en la zona delantera (desde 340° hasta 359°)
   {
     float dist = scan->ranges[idx];
     if (dist < min_dist) min_dist = dist;
 
-    RCLCPP_INFO(get_logger(), "min_dist in (%f)", min_dist);
+    RCLCPP_INFO(get_logger(), "min_dist in front (%f)", min_dist);
   }
 
+  // Zona izquierda del Lidar (de 90 a 135 grados y de 225 a 270 grados)
+  float min_dist_left = scan->range_max;  // Inicializa con el valor máximo de distancia
+  for(int idx = 90; idx < 135; idx++)  // Rango para la zona izquierda (de 90° a 135°)
+  {
+    float dist = scan->ranges[idx];
+    if (dist < min_dist_left) min_dist_left = dist;
+  }
 
-  // Zona izquierda del Lidar
+  for(int idx = 225; idx < 270; idx++)  // Continúa en la zona izquierda (de 225° a 270°)
+  {
+    float dist = scan->ranges[idx];
+    if (dist < min_dist_left) min_dist_left = dist;
 
-
+    RCLCPP_INFO(get_logger(), "min_dist_left in (%f)", min_dist_left);
+  }
 
   // Mensajes que se publicarán
   auto obstacle_msg = std_msgs::msg::Bool();  // Para indicar si hay un obstáculo
