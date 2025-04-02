@@ -26,9 +26,6 @@ private:
   // Callback que se ejecuta cuando se recibe un mensaje del Lidar
   void laser_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr & scan);
 
-  // Método para controlar el movimiento del Kobuki
-  void move_robot(float linear, float angular);
-
   // Suscriptor que recibe los datos del Lidar
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_sub_;
 
@@ -42,12 +39,7 @@ private:
   // Distancia deseada a la pared izquierda
   float distance_to_wall_ {1.0};
 
-  // Iniciamos min_dist y min_dist_left a 0.0
-  float dist_delante {0.0};
-  float dist_izquierda {0.0};
-
-
-  // Iniciamos el estado actual dentro de la máquina de estados
+  // Estado actual de la máquina de estados
   Estado estado_actual {Estado::SIGUIENDO_PARED};
 };
 
