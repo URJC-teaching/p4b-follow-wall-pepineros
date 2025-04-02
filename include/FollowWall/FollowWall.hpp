@@ -43,8 +43,8 @@ private:
   float distance_to_wall_ {1.0};
 
   // Iniciamos min_dist y min_dist_left a 0.0
-  float min_dist {0.0};
-  float min_dist_left {0.0};
+  float dist_delante {0.0};
+  float dist_izquierda {0.0};
 
 
   // Iniciamos el estado actual dentro de la máquina de estados

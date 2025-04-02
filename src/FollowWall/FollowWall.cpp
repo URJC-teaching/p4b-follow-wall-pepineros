@@ -32,41 +32,41 @@ FollowWallNode::FollowWallNode() : Node("follow_wall_node")
 void 
 FollowWallNode::laser_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr & scan)
 {
-  RCLCPP_INFO(get_logger(), "Rango del Lidar (%li puntos)", scan->ranges.size());
+  // RCLCPP_INFO(get_logger(), "Rango del Lidar (%li puntos)", scan->ranges.size());
 
   // Zona de delante del Lidar (de 0 a 19 grados y de 340 a 359 grados)
-  float min_dist = scan->range_max;
+  float dist_delante = scan->range_max;
   for(int idx = 0; idx < 19; idx++) 
   {
     float dist = scan->ranges[idx];
-    if (dist < min_dist) min_dist = dist;
+    if (dist < dist_delante) dist_delante = dist;
   }
   for(int idx = 340; idx < 359; idx++)
   {
     float dist = scan->ranges[idx];
-    if (dist < min_dist) min_dist = dist;
+    if (dist < dist_delante) dist_delante = dist;
   }
-  RCLCPP_INFO(get_logger(), "min_dist delante: %f", min_dist);
+  RCLCPP_INFO(get_logger(), "Distancia delante: %f", dist_delante);
 
   // Zona izquierda del Lidar (de 60 a 120 grados)
-  float min_dist_left = scan->range_max;
-  for(int idx = 60; idx <= 120; idx++)
+  float dist_izquierda = scan->range_max;
+  for(int idx = 60; idx < 120; idx++)
   {
     float dist = scan->ranges[idx];
-    if (dist < min_dist_left) min_dist_left = dist;
+    if (dist < dist_izquierda) dist_izquierda = dist;
   }
-  RCLCPP_INFO(get_logger(), "min_dist_left izquierda: %f", min_dist_left);
+  RCLCPP_INFO(get_logger(), "Distancia izquierda: %f", dist_izquierda);
 
   auto cmd_vel_msg = geometry_msgs::msg::Twist();
 
   // Máquina de estados para decidir la acción del kobuki
   switch (estado_actual) {
     case Estado::SIGUIENDO_PARED:
-      if (min_dist < min_distance_) {  // Si hay un obstáculo en frente
+      if (dist_delante < min_distance_ + 0.2) {  // Si hay un obstáculo en frente
         estado_actual = Estado::EVADE_OBSTACULO;
-      } else if (min_dist_left > distance_to_wall_ + 0.2) {  // Si está demasiado lejos de la pared izquierda
+      } else if (dist_izquierda > distance_to_wall_ + 0.2) {  // Si está demasiado lejos de la pared
         estado_actual = Estado::BUSCANDO_PARED;
-      } else if (min_dist_left < distance_to_wall_ - 0.2) {  // Si está demasiado cerca de la pared izquierda
+      } else if (dist_izquierda < distance_to_wall_ - 0.2) {  // Si está demasiado cerca de la pared
         cmd_vel_msg.linear.x = 0.2;
         cmd_vel_msg.angular.z = 0.2;
       } else {  // Si está a la distancia de 1 metro de la pared izquierda
@@ -76,7 +76,7 @@ FollowWallNode::laser_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr
       break;
 
     case Estado::BUSCANDO_PARED:
-      if (min_dist_left > 2.0) {
+      if (dist_izquierda > distance_to_wall_ + 0.2) {
         cmd_vel_msg.linear.x = 0.2;
         cmd_vel_msg.angular.z = 0.0;
       } else {
@@ -85,7 +85,7 @@ FollowWallNode::laser_callback(const sensor_msgs::msg::LaserScan::ConstSharedPtr
       break;
 
     case Estado::EVADE_OBSTACULO:
-      if (min_dist < min_distance_) {
+      if (dist_delante < min_distance_ + 0.2) {
         cmd_vel_msg.linear.x = 0.0;
         cmd_vel_msg.angular.z = 0.5;
       } else {
