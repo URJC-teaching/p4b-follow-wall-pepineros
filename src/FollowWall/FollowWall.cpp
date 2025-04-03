@@ -21,7 +21,7 @@ FollowWallNode::FollowWallNode() : Node("follow_wall_node")
 
   // Suscripción al topic "scan_raw" (Gazebo) o "scan_filtered" (kobuki)
   laser_sub_ = create_subscription<sensor_msgs::msg::LaserScan>(
-    "scan_raw", rclcpp::SensorDataQoS().reliable(),
+    "scan_filtered", rclcpp::SensorDataQoS().reliable(),
     std::bind(&FollowWallNode::laser_callback, this, _1));
 
   // Publicador para enviar comandos de velocidad al robot en el topic "cmd_vel"
